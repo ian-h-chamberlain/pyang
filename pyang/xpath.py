@@ -65,7 +65,7 @@ def add_prefix(prefix, s):
 
 def _add_prefix(prefix, tok):
     if tok.type == 'name':
-        m = re_ncname.match(tok.value)
+        m = xpath_lexer.re_ncname.match(tok.value)
         if m.group(2) == None:
             tok.value = prefix + ':' + tok.value
     return tok
@@ -80,8 +80,7 @@ def v_xpath(ctx, stmt, node):
         else:
             q = xpath_parser.parse(stmt.arg)
             stmt.i_xpath = q
-        if node is not None:
-            chk_xpath_expr(ctx, stmt.i_orig_module, stmt.pos, node, node, q)
+        chk_xpath_expr(ctx, stmt.i_orig_module, stmt.pos, node, node, q)
     except xpath_lexer.XPathError as e:
         err_add(ctx.errors, stmt.pos, 'XPATH_SYNTAX_ERROR', e.msg)
         stmt.i_xpath = None
@@ -197,7 +196,7 @@ def chk_xpath_path(ctx, mod, pos, initial, node, path):
     if head[0] == 'var':
         # check if the variable is known as a node-set
         # currently we don't have any variables, so this fails
-        err_add(ctx.errors, pos, 'XPATH_VARIABLE', q[1])
+        err_add(ctx.errors, pos, 'XPATH_VARIABLE', head[1])
     elif head[0] == 'function_call':
         func = head[1]
         args = head[2]
@@ -213,19 +212,25 @@ def chk_xpath_path(ctx, mod, pos, initial, node, path):
         nodetest = head[2]
         preds = head[3]
         node1 = None
-        if node is None:
-            # we can't check the path
-            pass
-        elif axis == 'self':
+        if axis == 'self':
             pass
         elif axis == 'child' and nodetest[0] == 'name':
             prefix = nodetest[1]
             name = nodetest[2]
             if prefix is None:
-                pmodule = initial.i_module
+                if initial is None:
+                    pmodule = None
+                elif initial.keyword == 'module':
+                    pmodule = initial
+                else:
+                    pmodule = initial.i_module
             else:
                 pmodule = prefix_to_module(mod, prefix, pos, ctx.errors)
-            if pmodule is not None:
+            # if node and initial are None, it means we're checking an XPath
+            # expression when it is defined in a grouping or augment, i.e.,
+            # when the full tree is not expanded.  in this case we can't check
+            # the paths
+            if pmodule is not None and node is not None and initial is not None:
                 if node == 'root':
                     children = pmodule.i_children
                 elif hasattr(node, 'i_children'):
@@ -246,11 +251,16 @@ def chk_xpath_path(ctx, mod, pos, initial, node, path):
                 else:
                     node1 = child
         elif axis == 'parent' and nodetest == ('node_type', 'node'):
-            p = data_node_up(node)
-            if p is None:
+            if node is None:
+                pass
+            elif node == 'root':
                 err_add(ctx.errors, pos, 'XPATH_PATH_TOO_MANY_UP', ())
             else:
-                node1 = p
+                p = data_node_up(node)
+                if p is None:
+                    err_add(ctx.errors, pos, 'XPATH_PATH_TOO_MANY_UP', ())
+                else:
+                    node1 = p
         else:
             # we can't validate the steps on other axis, but we can validate
             # functions etc.

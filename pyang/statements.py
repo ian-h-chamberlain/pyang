@@ -114,7 +114,7 @@ class Abort(Exception):
 ### Constants
 
 re_path = re.compile('(.*)/(.*)')
-re_deref = re.compile('deref\s*\(\s*(.*)\s*\)/\.\./(.*)')
+re_deref = re.compile(r'deref\s*\(\s*(.*)\s*\)/\.\./(.*)')
 re_and_or = re.compile(r'\band\b|\bor\b')
 
 data_definition_keywords = ['container', 'leaf', 'leaf-list', 'list',
@@ -311,7 +311,7 @@ _refinements = [
     ('presence', ['container'], False, None),
     ('must', ['container', 'leaf', 'leaf-list', 'list', 'anyxml', 'anydata'],
      True, None),
-    ('default', ['leaf', 'choice'],
+    ('default', ['leaf', ('$1.1', 'leaf-list'), 'choice'],
      False, lambda ctx, target, default: v_default(ctx, target, default)),
     ('mandatory', ['leaf', 'choice', 'anyxml', 'anydata'], False, None),
     ('min-elements', ['leaf-list', 'list'], False, None),
@@ -1530,10 +1530,8 @@ def v_expand_1_uses(ctx, stmt):
     subspec = grammar.flatten_spec(subspec)
     whens = list(stmt.search('when'))
     for s in whens:
-        s.parent = stmt.parent
+        s.i_origin = 'uses'
     iffeatures = list(stmt.search('if-feature'))
-    for s in iffeatures:
-        s.parent = stmt.parent
     # first, copy the grouping into our i_children
     for g in stmt.i_grouping.i_children:
         if util.keysearch(g.keyword, 0, subspec) == None:
@@ -1572,8 +1570,12 @@ def v_expand_1_uses(ctx, stmt):
         newg = g.copy(stmt.parent, stmt,
                       nocopy=['type','uses','unique','typedef','grouping'],
                       copyf=post_copy)
-        newg.substmts.extend(whens)
-        newg.substmts.extend(iffeatures)
+        for s in whens:
+            news = s.copy(newg)
+            newg.substmts.append(news)
+        for s in iffeatures:
+            news = s.copy(newg)
+            newg.substmts.append(news)
 
         if hasattr(stmt, 'i_not_implemented'):
             newg.i_not_implemented = stmt.i_not_implemented
@@ -1600,7 +1602,8 @@ def v_expand_1_uses(ctx, stmt):
             continue
         refined[target] = refinement.pos
 
-        for (keyword, valid_keywords, merge, v_fun) in _refinements:
+        for (keyword, valid_keywords0, merge, v_fun) in _refinements:
+            valid_keywords = filter_valid_keywords(valid_keywords0, stmt)
             if merge:
                 merge_from_refinement(target, refinement, keyword,
                                       valid_keywords, v_fun)
@@ -1621,6 +1624,18 @@ def v_expand_1_uses(ctx, stmt):
         # after refinement, we need to re-run some of the tests, e.g. if
         # the refinement added a default value it needs to be checked.
         v_recheck_target(ctx, ch, reference=False)
+
+def filter_valid_keywords(keywords, stmt):
+    res = []
+    for i in keywords:
+        if type(i) == type(()):
+            if stmt.i_module.i_version != '1':
+                res.append(i[1])
+            else:
+                res.append(i)
+        else:
+            res.append(i)
+    return res
 
 def v_inherit_properties(ctx, stmt, child=None):
     def iter(s, config_value, allow_explicit):
@@ -2055,6 +2070,8 @@ def v_reference_when(ctx, stmt):
 def v_xpath(ctx, stmt):
     if stmt.parent.keyword == 'augment':
         node = stmt.parent.i_target_node
+    elif hasattr(stmt, 'i_origin', ) and stmt.i_origin == 'uses':
+        node = util.data_node_up(stmt.parent)
     else:
         node = stmt.parent
     if node is not None:
@@ -3067,6 +3084,7 @@ class MustStatement(Statement):
 class WhenStatement(Statement):
     __slots__ = (
         'i_xpath',                    # parsed xpath expression | None
+        'i_origin',                   # 'uses'
     )
 
 
@@ -3115,7 +3133,7 @@ def mk_path_list(stmt):
     """
     resolved_names = []
     def resolve_stmt(stmt, resolved_names):
-        if stmt.keyword in ['choice', 'case']:
+        if stmt.keyword in ['choice', 'case', 'input', 'output']:
             resolve_stmt(stmt.parent, resolved_names)
             return
         def qualified_name_elements(stmt):

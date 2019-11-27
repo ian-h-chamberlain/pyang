@@ -293,10 +293,10 @@ error_codes = \
        ' other nodes in the unique expression'),
     'ILLEGAL_ESCAPE':
       (1,
-       'the escape sequence "\%s" is illegal in double quoted strings'),
+       'the escape sequence "\\%s" is illegal in double quoted strings'),
     'ILLEGAL_ESCAPE_WARN':
       (4,
-       'the escape sequence "\%s" is unsafe in double quoted strings' \
+       'the escape sequence "\\%s" is unsafe in double quoted strings' \
        ' - pass the flag --lax-quote-checks to avoid this warning'),
     'UNIQUE_IS_KEY':
       (4,
@@ -351,9 +351,6 @@ error_codes = \
       (1,
        'the deref argument refers to node "%s" at %s which'
        ' does not refer to a key (%s at %s)'),
-    'LEAFREF_DEREF_NOT_LEAFREF':
-      (1,
-       'the deref argument for "%s" at %s does not refer to a leafref leaf'),
     'LEAFREF_TO_NOT_IMPLEMENTED':
       (1,
        'the leafref refer to a node that is not implemented'),
@@ -460,7 +457,7 @@ error_codes = \
        'node "%s::%s" is not found in module "%s"'),
     'XPATH_PATH_TOO_MANY_UP':
       (2,
-       'the path has too many "..."'),
+       'the path has too many ".."'),
 
 #    'XPATH_FUNCTION_RET_VAL':
 #      (2,

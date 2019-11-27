@@ -3,6 +3,17 @@
 
 ## News ##
 
+**2019-10-20 - Version 2.1 released**
+
+  * added a plugin to generate SID files (see draft-ietf-core-sid)
+
+  * ... and various other bug fixes, see CHANGES.
+
+**2019-08-21 - Version 2.0.2 released**
+
+  * this is a pure bug fix release
+
+
 **2019-06-11 - Version 2.0.1 released**
 
   * this is a pure bug fix release
